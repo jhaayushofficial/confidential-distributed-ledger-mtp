@@ -3,15 +3,17 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::path::PathBuf;
 
-use bulletproof::proofs::range_proof::RangeProof;
+
 use curv::elliptic::curves::{Point, Scalar, Secp256k1};
 pub type FE = Scalar<Secp256k1>;
 pub type GE = Point<Secp256k1>;
 use curv::BigInt;
 use log::info;
-use message::node::dec_msg::{NodeDecPhaseOneBroadcastMsg, NodeDecPhaseTwoBroadcastMsg};
+use message::node::dec_msg::{NodeDecPhaseOneBroadcastMsg, NodeDecPhaseTwoBroadcastMsg, RangeProof};
 use elgamal::elgamal::elgamal::{map_share_to_new_params, BatchDecRightProof, BatchEncRightProof, ElgamalCipher, EncEqualProof};
 use crate::node::Node;
+use message::tx::{Type1AggregatedTx, OffChainDecShares, OffChainShareEntry, LoanMetadata, EcdsaSignature64};
+use message::merkle::MerkleTree;
 
 impl Node {
     pub fn dec_phase_one(&mut self) -> NodeDecPhaseOneBroadcastMsg
@@ -151,5 +153,143 @@ impl Node {
         let gm_ = GE::base_point2() * FE::from(400);
         info!("gm_vec = {:?}", gm_vec.clone());
         info!("gm_ = {:?}", gm_);
+    }
+}
+
+// ─── helpers ────────────────────────────────────────────────────────────────────
+
+/// Serialise a secp256k1 EC point to its 33-byte compressed representation.
+///
+/// `curv-kzen` serialises `Point<Secp256k1>` via serde as a compressed-hex
+/// string, e.g. `"02abcd..."` (66 hex chars = 33 bytes).  This helper peels
+/// off the JSON quotes and hex-decodes to produce a `[u8; 33]`.
+fn ge_to_33bytes(p: &GE) -> [u8; 33] {
+    let json_str = serde_json::to_string(p).expect("point to json");
+    // serde_json wraps the hex string in outer quotes: `"02..."`
+    let hex = json_str.trim_matches('"');
+    let raw = hex::decode(hex).expect("hex-decode compressed point");
+    assert_eq!(
+        raw.len(),
+        33,
+        "expected 33-byte compressed secp256k1 point, got {} bytes (hex={})",
+        raw.len(),
+        hex
+    );
+    let mut arr = [0u8; 33];
+    arr.copy_from_slice(&raw);
+    arr
+}
+
+// ─── coordinator: assemble the aggregated on-chain tx ────────────────────────────
+
+impl Node {
+    /// Assemble the constant-size [`Type1AggregatedTx`] (260 bytes) after all
+    /// lender nodes have broadcast their phase-one and phase-two messages.
+    ///
+    /// # Protocol steps performed here
+    ///
+    /// 1. **Aggregate group ciphertexts** using ElGamal homomorphism:
+    ///    `C1_agg = Σ group_c1_i`,  `C2_agg = Σ group_c2_i`
+    /// 2. **Aggregate regulator ciphertexts** similarly:
+    ///    `reg_C1_agg`, `reg_C2_agg`
+    /// 3. **Collect partial decryption shares** `d_i = sk_i × C1_total` from
+    ///    each phase-two message.
+    /// 4. **Build a binary Merkle tree** over the compressed-byte form of
+    ///    every share; store only the 32-byte root on-chain.
+    /// 5. **Create per-lender Merkle proofs** and pack them into
+    ///    [`OffChainDecShares`] for distribution to the off-chain data layer.
+    ///
+    /// # Arguments
+    /// * `phase_one_msgs` – one message per lender node (ciphertext inputs).
+    /// * `phase_two_msgs` – one message per lender node (partial dec shares).
+    /// * `loan_id`        – identifies the current lending round.
+    ///
+    /// # Returns
+    /// * [`Type1AggregatedTx`]  – 260-byte on-chain transaction.
+    /// * [`OffChainDecShares`]  – shares + proofs stored off-chain.
+    pub fn assemble_aggregated_tx(
+        phase_one_msgs: &[NodeDecPhaseOneBroadcastMsg],
+        phase_two_msgs: &[NodeDecPhaseTwoBroadcastMsg],
+        loan_id: u64,
+    ) -> (Type1AggregatedTx, OffChainDecShares) {
+        assert!(!phase_one_msgs.is_empty(), "need at least one phase-one message");
+        assert_eq!(
+            phase_one_msgs.len(),
+            phase_two_msgs.len(),
+            "phase-one and phase-two message counts must match (got {} vs {})",
+            phase_one_msgs.len(),
+            phase_two_msgs.len()
+        );
+
+        let batch_size = phase_one_msgs[0].mul_cipher_vec.len();
+        assert_eq!(batch_size, 1, "only batch_size=1 is currently supported");
+
+        // ── 1. Aggregate group ciphertexts (ElGamal homomorphism) ──────────────
+        // C_total = cipher_0 + cipher_1 + ... + cipher_{n-1}
+        let mut group_total: Vec<ElgamalCipher> = phase_one_msgs[0].mul_cipher_vec.clone();
+        for msg in phase_one_msgs.iter().skip(1) {
+            for (j, c) in msg.mul_cipher_vec.iter().enumerate() {
+                group_total[j] = group_total[j].clone() + c.clone();
+            }
+        }
+
+        // ── 2. Aggregate regulator ciphertexts ──────────────────────────────
+        let mut reg_total: Vec<ElgamalCipher> = phase_one_msgs[0].cipher_vec_reg.clone();
+        for msg in phase_one_msgs.iter().skip(1) {
+            for (j, c) in msg.cipher_vec_reg.iter().enumerate() {
+                reg_total[j] = reg_total[j].clone() + c.clone();
+            }
+        }
+
+        // Serialise the four aggregate ciphertext components to [u8; 33].
+        let c1_agg     = ge_to_33bytes(&group_total[0].c1);
+        let c2_agg     = ge_to_33bytes(&group_total[0].c2);
+        let reg_c1_agg = ge_to_33bytes(&reg_total[0].c1);
+        let reg_c2_agg = ge_to_33bytes(&reg_total[0].c2);
+
+        // ── 3. Collect partial dec shares and build Merkle tree ──────────────
+        // d_i = sk_i × C1_total  (one EC point per node, batch entry 0)
+        let share_bytes: Vec<[u8; 33]> = phase_two_msgs
+            .iter()
+            .map(|msg| ge_to_33bytes(&msg.batch_dec_c1[0]))
+            .collect();
+
+        // Build the Merkle tree; leaves are the raw 33-byte share arrays.
+        let leaf_slices: Vec<&[u8]> = share_bytes.iter().map(|s| s.as_ref()).collect();
+        let tree = MerkleTree::build(&leaf_slices);
+        let root = tree.root();
+
+        // ── 4. Pair each share with its Merkle inclusion proof ──────────────
+        let entries: Vec<OffChainShareEntry> = phase_two_msgs
+            .iter()
+            .enumerate()
+            .map(|(i, msg)| OffChainShareEntry {
+                node_id:           msg.sender,
+                partial_dec_share: share_bytes[i],
+                merkle_proof:      tree.proof(i),
+            })
+            .collect();
+
+        let off_chain = OffChainDecShares {
+            loan_id,
+            shares_merkle_root: root,
+            entries,
+        };
+
+        // ── 5. Build the on-chain transaction (260 bytes) ────────────────────
+        // meta and sig are zeroed here; the coordinator's signing layer would
+        // fill meta.bytes with the loan round ID and overwrite sig.bytes with
+        // the ECDSA signature over the serialised payload before RPC submission.
+        let on_chain_tx = Type1AggregatedTx {
+            meta:               LoanMetadata { bytes: [0u8; 32] },
+            sig:                EcdsaSignature64 { bytes: [0u8; 64] },
+            c1_agg,
+            c2_agg,
+            reg_c1_agg,
+            reg_c2_agg,
+            shares_merkle_root: root,
+        };
+
+        (on_chain_tx, off_chain)
     }
 }

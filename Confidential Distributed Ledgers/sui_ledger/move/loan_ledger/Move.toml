@@ -1,0 +1,18 @@
+[package]
+name = "loan_ledger"
+edition = "2024.beta"
+
+# Sui framework dependency — the `rev` must match the `sui` binary version
+# on your machine.  Update it after running: sui --version
+[dependencies.Sui]
+git = "https://github.com/MystenLabs/sui.git"
+subdir = "crates/sui-framework/packages/sui-framework"
+rev = "framework/testnet"
+
+[addresses]
+loan_ledger = "0x0"
+
+[environments]
+local = "4afa5d30"
+localnet = "53d6aadf"
+devnet = "826b0c22"

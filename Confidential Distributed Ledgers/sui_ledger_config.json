@@ -1,0 +1,7 @@
+{
+  "rpc_url": "https://fullnode.devnet.sui.io:443",
+  "faucet_url": "https://faucet.devnet.sui.io/v2/gas",
+  "package_id": "0x37ee338e8c345b3fa5da58ada463c09d4a5c17ebf80add9749ffead3a23b2de0",
+  "ledger_object_id": "0x939efff1e6431566e92721fce324c13c21ff217157c43203e13493d67e882bf7",
+  "ledger_initial_shared_version": 4
+}

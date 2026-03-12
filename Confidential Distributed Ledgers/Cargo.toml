@@ -5,14 +5,13 @@ members = [
     "regulator",
     "intergration_test",
     "elgamal",
-    "bulletproof"
 ]
+exclude = ["bulletproof", "third_party/curv", "sui_ledger"]
 resolver = "2"
 
 [workspace.dependencies]
 elgamal = { path = "./elgamal" }
 message = { path = "./message" }
-bulletproof = {path = "./bulletproof"}
 node = { path = "./node" }
 regulator = { path = "./regulator" }
 intergration_test = { path = "./intergration_test" }

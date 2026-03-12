@@ -16,20 +16,4 @@ version 3 of the License, or (at your option) any later version.
 #![allow(clippy::many_single_char_names, clippy::too_many_arguments)]
 
 // based on the paper: https://eprint.iacr.org/2017/1066.pdf
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-
-extern crate curv;
-extern crate generic_array;
-extern crate itertools;
-extern crate sha2;
-
-pub mod proofs;
-
-#[derive(Copy, PartialEq, Eq, Clone, Debug)]
-pub enum Errors {
-    InnerProductError,
-    WeightedInnerProdError,
-    RangeProofError,
-}
+// empty

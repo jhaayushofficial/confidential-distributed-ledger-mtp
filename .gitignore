@@ -1,0 +1,38 @@
+# Build artifacts
+**/target/
+
+# Archives and binaries
+*.tar.gz
+*.zip
+*.exe
+fisco-bcos-binary
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node data (generated at runtime)
+ethen_nodes/
+docker/
+console/
+
+# Third-party source repos (use submodules if needed)
+FISCO-BCOS/
+
+# WSL/backup artifacts
+wsl_backup*
+wsl
+
+# Output artifacts (regenerable)
+*_output.txt
+devnet_publish*.txt
+results/

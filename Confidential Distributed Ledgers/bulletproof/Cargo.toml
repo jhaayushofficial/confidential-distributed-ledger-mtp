@@ -1,6 +1,7 @@
 [package]
 name = "bulletproof"
 version = "1.2.0"
+edition = "2018"
 authors = [
     "Omer Shlomovits <omer@kzencorp.com>",
     "Suyash Bagad <suyashnbagad1997@gmail.com>"
@@ -19,10 +20,7 @@ curv = { package = "curv-kzen", git="https://github.com/ZenGo-X/curv.git", rev="
 sha2 = "0.9"
 generic-array = "0.14"
 
-[dev-dependencies]
-criterion = "0.2"
 
-[[bench]]
-name = "range_proof"
-path = "benches/range_proof.rs"
-harness = false
+
+[workspace]
+

@@ -1,0 +1,12 @@
+{
+  "rpc_url": "https://127.0.0.1:20200",
+  "group_id": "group0",
+  "chain_id": "chain0",
+  "loan_ledger_address": "0x6849f21d1e455e9f0712b1e99fa4fcd23758e8f1",
+  "repayment_ledger_address": "0x4721d1a77e0e76851d460073e64ea06d9c104194",
+  "account_address": "0x8f29d04cf7ea2df99b99ca8f5d823f939b94eb98",
+  "ca_cert": "/home/ayush/nodes/127.0.0.1/sdk/ca.crt",
+  "sdk_cert": "/home/ayush/nodes/127.0.0.1/sdk/sdk.crt",
+  "sdk_key": "/home/ayush/nodes/127.0.0.1/sdk/sdk.key",
+  "private_key_pem": "/mnt/c/MTP/Distributed-Ledgers/console/account/ecdsa/0x8f29d04cf7ea2df99b99ca8f5d823f939b94eb98.pem"
+}

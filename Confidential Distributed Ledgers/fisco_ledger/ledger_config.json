@@ -1,0 +1,12 @@
+{
+  "account_address": "0x8f29d04cf7ea2df99b99ca8f5d823f939b94eb98",
+  "ca_cert": "/home/ayush/fisco/active_certs/ca.crt",
+  "chain_id": "chain0",
+  "group_id": "group0",
+  "loan_ledger_address": "0xa70b7577a65da3e25bfbcacce8f9e30b53a0cede",
+  "private_key_pem": "/mnt/c/MTP/console/account/ecdsa/0x8f29d04cf7ea2df99b99ca8f5d823f939b94eb98.pem",
+  "repayment_ledger_address": "0x1d5bfe0835627b369d3647548d85f0681c33d6fc",
+  "rpc_url": "https://127.0.0.1:20200",
+  "sdk_cert": "/home/ayush/fisco/active_certs/sdk.crt",
+  "sdk_key": "/home/ayush/fisco/active_certs/sdk.key"
+}

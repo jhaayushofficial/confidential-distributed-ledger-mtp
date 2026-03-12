@@ -23,3 +23,5 @@ anyhow = "1.0"
 tokio = { version = "1.32.0", features = ["full"] }
 log = "0.4"
 log4rs = "1.2.0"
+serde_arrays = "0.1.0"
+
